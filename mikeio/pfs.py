@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import re
 import yaml
 import pandas as pd
 from typing import Union
@@ -76,13 +77,13 @@ class Pfs:
             "time_step_frequency",
         ]
         rows = []
+        index = range(1, n+1)
         for i in range(n):
-
             output = sub[f"OUTPUT_{i+1}"]
             row = {key: output[key] for key in sel_keys}
 
             rows.append(row)
-        df = pd.DataFrame(rows)
+        df = pd.DataFrame(rows, index=index)
 
         if included_only:
             df = df[df.include == 1]
@@ -108,6 +109,7 @@ class Pfs:
 
     def _parse_line(self, line):
         s = line.strip()
+        s = re.sub(r"\s*//.*", "", s)
 
         if len(s) > 0:
             if s[0] == "[":
@@ -116,7 +118,8 @@ class Pfs:
             if s[-1] == "]":
                 s = s.replace("]", ":")
 
-        s = s.replace("//", "#").replace("|", "")  # TODO
+
+        s = s.replace("//", "").replace("|", "")
 
         if len(s) > 0 and s[0] != "!":
             if "=" in s:
