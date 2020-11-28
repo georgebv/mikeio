@@ -1,4 +1,5 @@
 import os
+from typing import Union, List, Optional
 import warnings
 import numpy as np
 import pandas as pd
@@ -25,13 +26,13 @@ from .helpers import safe_length
 
 class Dfs0:
 
-    _start_time = None
-    _n_items = None
-    _dt = None
-    _is_equidistant = None
-    _title = None
-    _data_value_type = None
-    _items = None
+    _start_time = datetime.now()
+    _n_items = 0
+    _dt = 1.0
+    _is_equidistant = False
+    _title = ""
+    _data_value_type = DataValueType.Instantaneous
+    _timeaxistype = TimeAxisType.EquidistantCalendar
 
     def __init__(self, filename=None):
         """Create a Dfs0 object for reading, writing
@@ -42,6 +43,7 @@ class Dfs0:
             File name including full path to the dfs0 file.
         """
         self._filename = filename
+        self._items = []
 
         if filename:
             self._read_header()
@@ -85,7 +87,8 @@ class Dfs0:
 
         dfs.Close()
 
-    def read(self, items=None, time_steps=None):
+    def read(self, items: Union[List[str], List[int]] = None,
+             time_steps: Union[List[int], int] = None) -> Dataset:
         """
         Read data from a dfs0 file.
 
@@ -208,18 +211,15 @@ class Dfs0:
 
         dtype_dfs = self._to_dfs_datatype(self._dtype)
 
-        for i in range(self._n_items):
-            item = self._items[i]
+        for item in self.items:
+            
             newitem = builder.CreateDynamicItemBuilder()
             quantity = eumQuantity.Create(item.type, item.unit)
             newitem.Set(
                 item.name, quantity, dtype_dfs,
             )
 
-            if self._data_value_type is not None:
-                newitem.SetValueType(self._data_value_type[i])
-            else:
-                newitem.SetValueType(DataValueType.Instantaneous)
+            newitem.SetValueType(item.data_value_type)
 
             newitem.SetAxis(factory.CreateAxisEqD0())
             builder.AddDynamicItem(newitem.GetDynamicItemInfo())
@@ -233,16 +233,16 @@ class Dfs0:
 
     def write(
         self,
-        filename,
-        data,
-        start_time=None,
+        filename: str,
+        data: Union[Dataset, List[np.ndarray]],
+        start_time: datetime = None,
         timeseries_unit=TimeStepUnit.SECOND,
-        dt=None,
-        datetimes=None,
-        items=None,
-        title="",
-        data_value_type=None,
-        dtype=None,
+        dt: float = None,
+        datetimes: List[datetime] = None,
+        items: List[ItemInfo] = None,
+        title: str = "",
+        data_value_type: List[DataValueType] = None,
+        dtype: np.dtype = None,
     ):
         """
         Create a dfs0 file.
@@ -302,12 +302,12 @@ class Dfs0:
         if items:
             self._items = items
 
-        if self._items is None:
+        if not self._items:
             warnings.warn("No items info supplied. Using Item 1, 2, 3,...")
             self._items = [ItemInfo(f"Item {i + 1}") for i in range(self._n_items)]
 
-        if len(self._items) != self._n_items:
-            raise ValueError("Number of items must match the number of data columns.")
+        #if len(self._items) != self._n_items:
+        #    raise ValueError("Number of items must match the number of data columns.")
 
         if datetimes is not None:
             self._start_time = datetimes[0]
@@ -340,7 +340,7 @@ class Dfs0:
 
         dfs.Close()
 
-    def to_dataframe(self, unit_in_name=False, round_time="s"):
+    def to_dataframe(self, unit_in_name=False, round_time="s") -> pd.DataFrame:
         """
         Read data from the dfs0 file and return a Pandas DataFrame.
         
@@ -366,7 +366,10 @@ class Dfs0:
         return df
 
     @staticmethod
-    def from_dataframe(df, filename, itemtype=None, unit=None, items=None):
+    def from_dataframe(df, filename: str,
+                       itemtype: Optional[EUMType] = None,
+                       unit: Optional[EUMUnit] = None,
+                       items: Optional[List[ItemInfo]] = None) -> None:
         """
         Create a dfs0 from a pandas Dataframe
 
@@ -382,9 +385,9 @@ class Dfs0:
         unit: EUMUnit, optional
             Same unit for all items
         items: list[ItemInfo]
-            Different types, units for each items, similar to `create`
+            Different types, units for each items, similar to `write`
         """
-        return dataframe_to_dfs0(df, filename, itemtype, unit, items)
+        dataframe_to_dfs0(df, filename, itemtype, unit, items)
 
     @property
     def deletevalue(self):
@@ -399,7 +402,7 @@ class Dfs0:
         return self._n_items
 
     @property
-    def items(self):
+    def items(self) -> List[ItemInfo]:
         """List of items
         """
         return self._items
@@ -420,7 +423,7 @@ def dataframe_to_dfs0(
     title=None,
     data_value_type=None,
     dtype=None,
-):
+) -> None:
     """
     Create a dfs0
 
@@ -463,35 +466,24 @@ def dataframe_to_dfs0(
             else:
                 items = [ItemInfo(name, itemtype, unit) for name in self.columns]
 
-    if self.index.freq is None:  # non-equidistant
-        dfs.write(
-            filename=filename,
-            data=data,
-            datetimes=self.index,
-            items=items,
-            title=title,
-            data_value_type=data_value_type,
-            dtype=dtype,
-        )
-    else:  # equidistant
-        dt = self.index.freq.delta.total_seconds()
-        start_time = self.index[0].to_pydatetime()
-        dfs.write(
-            filename=filename,
-            data=data,
-            start_time=start_time,
-            dt=dt,
-            items=items,
-            title=title,
-            data_value_type=data_value_type,
-            dtype=dtype,
-        )
+    ds = Dataset(data, self.index, items)
 
+    dfs.write(
+        filename=filename,
+        data=ds,
+        title=title,
+        data_value_type=data_value_type,
+        dtype=dtype,
+    )
+
+# =========================================
+# Extension (monkey patching) methods
+# =========================================
 
 pd.DataFrame.to_dfs0 = dataframe_to_dfs0
 
 
-def dataset_to_dfs0(self, filename):
+def dataset_to_dfs0(self, filename: str) -> None:
     """Write Dataset to a Dfs0 file
         
         Parameters

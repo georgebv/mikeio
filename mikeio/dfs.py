@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import List, Optional, Union
 import warnings
 import numpy as np
 import pandas as pd
@@ -15,7 +16,6 @@ from .custom_exceptions import DataDimensionMismatch, ItemNumbersError
 from DHI.Generic.MikeZero import eumQuantity
 from DHI.Generic.MikeZero.DFS import (
     DfsSimpleType,
-    DataValueType,
     DfsFactory,
 )
 
@@ -29,15 +29,18 @@ class _Dfs123:
     _items = None
     _builder = None
     _factory = None
-    _deletevalue = None
+    _deletevalue = 1e-35
     _override_coordinates = False
     _timeseries_unit = TimeStepUnit.SECOND
     _dt = None
+    _ndim = None
+    _dfs = None
 
     def __init__(self, filename=None):
         self._filename = filename
 
-    def read(self, items=None, time_steps=None):
+    def read(self, items: Union[List[str], List[int], None] = None,
+             time_steps: Union[List[int], int, None] = None) -> Dataset:
         """
         Read data from a dfs file
 
@@ -101,7 +104,7 @@ class _Dfs123:
         self._dfs.Close()
         return Dataset(data_list, time, items)
 
-    def _read_header(self):
+    def _read_header(self) -> None:
         dfs = self._dfs
         self._n_items = len(dfs.ItemInfo)
         self._items = self._get_item_info(list(range(self._n_items)))
@@ -130,6 +133,10 @@ class _Dfs123:
         elif self._ndim == 2:
             self._ny = shape[1]
             self._nx = shape[2]
+        elif self._ndim == 3:
+            self._nz = shape[1]
+            self._ny = shape[2]
+            self._nx = shape[3]
 
         self._factory = DfsFactory()
         self._set_spatial_axis()
@@ -380,50 +387,50 @@ class _Dfs123:
             raise ItemNumbersError()
 
     @property
-    def deletevalue(self):
+    def deletevalue(self) -> Optional[float]:
         "File delete value"
         return self._deletevalue
 
     @property
-    def n_items(self):
+    def n_items(self) -> Optional[int]:
         "Number of items"
         return self._n_items
 
     @property
-    def items(self):
+    def items(self) -> List[ItemInfo]:
         "List of items"
         return self._items
 
     @property
-    def start_time(self):
+    def start_time(self) -> Optional[datetime]:
         """File start time"""
         return self._start_time
 
     @property
-    def n_timesteps(self):
+    def n_timesteps(self) -> Optional[int]:
         """Number of time steps"""
         return self._n_timesteps
 
     @property
-    def timestep(self):
+    def timestep(self) -> Optional[float]:
         """Time step size in seconds"""
         return self._timestep_in_seconds
 
     @property
-    def projection_string(self):
+    def projection_string(self) -> str:
         return self._projstr
 
     @property
-    def longitude(self):
+    def longitude(self) -> float:
         """Origin longitude"""
         return self._longitude
 
     @property
-    def latitude(self):
+    def latitude(self) -> float:
         """Origin latitude"""
         return self._latitude
 
     @property
-    def orientation(self):
+    def orientation(self) -> float:
         """North to Y orientation"""
         return self._orientation

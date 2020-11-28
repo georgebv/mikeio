@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
@@ -75,7 +76,7 @@ def find_item(dfs, item_names):
     return item_numbers
 
 
-def get_item_info(dfs, item_numbers):
+def get_item_info(dfs, item_numbers: List[int]) -> List[ItemInfo]:
     """Read DFS ItemInfo
 
     Parameters

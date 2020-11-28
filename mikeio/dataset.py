@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import List, Tuple, Union
+from collections import Sequence
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
@@ -5,7 +8,7 @@ from copy import deepcopy
 from mikeio.eum import ItemInfo
 
 
-class Dataset:
+class Dataset(Sequence):
     """Dataset
 
     Attributes
@@ -79,7 +82,10 @@ class Dataset:
       1:  VarFun01 <Water Level> (meter)
     """
 
-    def __init__(self, data, time, items):
+    def __init__(self,
+                 data: np.ndarray,
+                 time: Union[pd.DatetimeIndex, List[datetime]],
+                 items: List[ItemInfo]):
 
         n_items = len(data)
         n_timesteps = data[0].shape[0]
@@ -94,7 +100,7 @@ class Dataset:
             )
         self.data = data
         self.time = pd.DatetimeIndex(time, freq="infer")
-        self.items = items
+        self.items: List[ItemInfo] = items
 
     def __repr__(self):
 
@@ -152,7 +158,7 @@ class Dataset:
 
         raise ValueError(f"indexing with a {type(x)} is not (yet) supported")
 
-    def copy(self):
+    def copy(self) -> 'Dataset':
         "Returns a copy of this dataset."
 
         items = deepcopy(self.items)
@@ -161,13 +167,13 @@ class Dataset:
 
         return Dataset(data, time, items)
 
-    def flipud(self):
+    def flipud(self) -> 'Dataset':
         "Flip dataset updside down"
 
         self.data = [np.flip(self[x], axis=1) for x in self.items]
         return self
 
-    def isel(self, idx, axis=1):
+    def isel(self, idx, axis=1)  -> 'Dataset':
         """
         Select subset along an axis.
 
@@ -217,7 +223,7 @@ class Dataset:
         ds = Dataset(res, time, items)
         return ds
 
-    def aggregate(self, axis=1, func=np.nanmean):
+    def aggregate(self, axis=1, func=np.nanmean)  -> 'Dataset':
         """Aggregate along an axis
         
 
@@ -252,7 +258,7 @@ class Dataset:
         ds = Dataset(res, time, items)
         return ds
 
-    def max(self, axis=1):
+    def max(self, axis=1)  -> 'Dataset':
         """Max value along an axis
         
         Parameters
@@ -271,7 +277,7 @@ class Dataset:
         """
         return self.aggregate(axis=axis, func=np.max)
 
-    def min(self, axis=1):
+    def min(self, axis=1) -> 'Dataset':
         """Min value along an axis
         
         Parameters
@@ -290,7 +296,7 @@ class Dataset:
         """
         return self.aggregate(axis=axis, func=np.min)
 
-    def mean(self, axis=1):
+    def mean(self, axis=1) -> 'Dataset':
         """Mean value along an axis
         
         Parameters
@@ -318,6 +324,8 @@ class Dataset:
         ----------
         axis: int, optional
             default 1= first spatial axis
+        weights:
+            weights for averaging
 
         Returns
         -------
@@ -327,7 +335,6 @@ class Dataset:
         See Also
         --------
             nanmean : Mean values with NaN values removed
-            aggregate: Weighted average
 
         Examples
         --------
@@ -345,7 +352,7 @@ class Dataset:
 
         return self.aggregate(axis=axis, func=func)
 
-    def nanmax(self, axis=1):
+    def nanmax(self, axis=1) -> 'Dataset':
         """Max value along an axis (NaN removed)
         
         Parameters
@@ -360,7 +367,7 @@ class Dataset:
         """
         return self.aggregate(axis=axis, func=np.nanmax)
 
-    def nanmin(self, axis=1):
+    def nanmin(self, axis=1) -> 'Dataset':
         """Min value along an axis (NaN removed)
         
         Parameters
@@ -375,7 +382,7 @@ class Dataset:
         """
         return self.aggregate(axis=axis, func=np.nanmin)
 
-    def nanmean(self, axis=1):
+    def nanmean(self, axis=1) -> 'Dataset':
         """Mean value along an axis (NaN removed)
         
         Parameters
@@ -390,27 +397,27 @@ class Dataset:
         """
         return self.aggregate(axis=axis, func=np.nanmean)
 
-    def head(self, n=5):
+    def head(self, n=5) -> 'Dataset':
         "Return the first n timesteps"
         nt = len(self.time)
         n = min(n, nt)
         time_steps = range(n)
         return self.isel(time_steps, axis=0)
 
-    def tail(self, n=5):
+    def tail(self, n=5) -> 'Dataset':
         "Return the last n timesteps"
         nt = len(self.time)
         start = max(0, nt - n)
         time_steps = range(start, nt)
         return self.isel(time_steps, axis=0)
 
-    def thin(self, step):
+    def thin(self, step) -> 'Dataset':
         "Return every n:th timesteps"
         nt = len(self.time)
         time_steps = range(0, nt, step)
         return self.isel(time_steps, axis=0)
 
-    def squeeze(self):
+    def squeeze(self) -> 'Dataset':
         """
         Remove axes of length 1
 
@@ -434,7 +441,7 @@ class Dataset:
 
     def interp_time(
         self, dt, method="linear", extrapolate=True, fill_value=np.nan,
-    ):
+    ) -> 'Dataset':
         """Temporal interpolation
 
         Wrapper of `scipy.interpolate.interp`
@@ -509,7 +516,7 @@ class Dataset:
         )
         return interpolator(outtime)
 
-    def to_dataframe(self, unit_in_name=False):
+    def to_dataframe(self, unit_in_name=False) -> pd.DataFrame:
         """Convert Dataset to a Pandas DataFrame
         
         Parameters
@@ -544,7 +551,7 @@ class Dataset:
         return [x.name for x in self.items]
 
     @property
-    def is_equidistant(self):
+    def is_equidistant(self) -> bool:
         """Is Dataset equidistant in time?
         """
         if len(self.time) < 3:
@@ -553,19 +560,19 @@ class Dataset:
         return self.time.freq is not None
 
     @property
-    def n_timesteps(self):
+    def n_timesteps(self) -> int:
         """Number of time steps
         """
         return len(self.time)
 
     @property
-    def n_items(self):
+    def n_items(self) -> int:
         """Number of items
         """
         return len(self.items)
 
     @property
-    def shape(self):
+    def shape(self) -> Tuple:
         """Shape of each item 
         """
         return self.data[self._first_non_z_item].shape
@@ -577,7 +584,7 @@ class Dataset:
         return 0
 
     @property
-    def n_elements(self):
+    def n_elements(self) -> int:
         """Number of spatial elements/points
         """
         n_elem = np.prod(self.shape)

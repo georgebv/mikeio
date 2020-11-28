@@ -500,15 +500,11 @@ def test_aggregation_workflows(tmpdir):
     ds = dfs.read(["Surface elevation", "Current speed"])
     ds2 = ds.max()
 
-    outfilename = os.path.join(tmpdir.dirname, "max.dfs0")
-    ds2.to_dfs0(outfilename)
-    assert os.path.isfile(outfilename)
+    assert ds.n_items == ds2.n_items
 
     ds3 = ds.min()
+    assert ds.n_items == ds3.n_items
 
-    outfilename = os.path.join(tmpdir.dirname, "min.dfs0")
-    ds3.to_dfs0(outfilename)
-    assert os.path.isfile(outfilename)
 
 
 def test_aggregations(tmpdir):
@@ -535,9 +531,8 @@ def test_weighted_average(tmpdir):
     area = dfs.get_element_area()
     ds2 = ds.average(weights=area)
 
-    outfilename = os.path.join(tmpdir.dirname, "average.dfs0")
-    ds2.to_dfs0(outfilename)
-    assert os.path.isfile(outfilename)
+    assert ds.n_items == ds2.n_items
+
 
 
 def test_copy():
